@@ -10,9 +10,30 @@ interface VideoClip {
   track: number;
 }
 
+interface TextElement {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  fontFamily: string;
+  color: string;
+  backgroundColor: string;
+  opacity: number;
+  rotation: number;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  alignment: 'left' | 'center' | 'right';
+  animation: string;
+  startTime: number;
+  endTime: number;
+}
+
 interface VideoPreviewProps {
   videoRef: React.RefObject<HTMLVideoElement>;
   videoClips: VideoClip[];
+  textElements?: TextElement[];
   currentTime: number;
   onTimeUpdate: () => void;
   onLoadedMetadata: () => void;
@@ -21,6 +42,7 @@ interface VideoPreviewProps {
 export function VideoPreview({
   videoRef,
   videoClips,
+  textElements = [],
   currentTime,
   onTimeUpdate,
   onLoadedMetadata
@@ -50,8 +72,13 @@ export function VideoPreview({
     }
   }, [currentClip, videoRef]);
 
+  // Get active text elements for current time
+  const activeTextElements = textElements.filter(element => 
+    currentTime >= element.startTime && currentTime <= element.endTime
+  );
+
   return (
-    <div className="w-full h-full flex items-center justify-center bg-black">
+    <div className="w-full h-full flex items-center justify-center bg-black relative">
       {currentClip ? (
         <video
           ref={videoRef}
@@ -84,6 +111,35 @@ export function VideoPreview({
           </p>
         </div>
       )}
+
+      {/* Text Overlays */}
+      {activeTextElements.map((element) => (
+        <div
+          key={element.id}
+          className="absolute pointer-events-none"
+          style={{
+            left: `${element.x}%`,
+            top: `${element.y}%`,
+            transform: `translate(-50%, -50%) rotate(${element.rotation}deg)`,
+            fontSize: `${element.fontSize}px`,
+            fontFamily: element.fontFamily,
+            color: element.color,
+            backgroundColor: element.backgroundColor === 'transparent' ? 'transparent' : element.backgroundColor,
+            opacity: element.opacity / 100,
+            fontWeight: element.bold ? 'bold' : 'normal',
+            fontStyle: element.italic ? 'italic' : 'normal',
+            textDecoration: element.underline ? 'underline' : 'none',
+            textAlign: element.alignment,
+            padding: element.backgroundColor !== 'transparent' ? '8px 16px' : '0',
+            borderRadius: element.backgroundColor !== 'transparent' ? '4px' : '0',
+            whiteSpace: 'pre-wrap',
+            maxWidth: '80%',
+            wordWrap: 'break-word'
+          }}
+        >
+          {element.text}
+        </div>
+      ))}
       
       {/* Video Info Overlay */}
       {currentClip && (

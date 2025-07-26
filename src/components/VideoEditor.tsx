@@ -28,6 +28,9 @@ import { MediaLibrary } from './MediaLibrary';
 import { Timeline } from './Timeline';
 import { VideoPreview } from './VideoPreview';
 import { EffectsPanel } from './EffectsPanel';
+import { AdvancedEffects } from './AdvancedEffects';
+import { TextOverlay } from './TextOverlay';
+import { VideoTrimmer } from './VideoTrimmer';
 import { ExportModal } from './ExportModal';
 
 interface VideoClip {
@@ -50,6 +53,26 @@ interface AudioClip {
   volume: number;
 }
 
+interface TextElement {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  fontFamily: string;
+  color: string;
+  backgroundColor: string;
+  opacity: number;
+  rotation: number;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  alignment: 'left' | 'center' | 'right';
+  animation: string;
+  startTime: number;
+  endTime: number;
+}
+
 export function VideoEditor() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -58,9 +81,13 @@ export function VideoEditor() {
   const [zoom, setZoom] = useState([100]);
   const [videoClips, setVideoClips] = useState<VideoClip[]>([]);
   const [audioClips, setAudioClips] = useState<AudioClip[]>([]);
+  const [textElements, setTextElements] = useState<TextElement[]>([]);
   const [selectedClip, setSelectedClip] = useState<string | null>(null);
+  const [selectedTextElement, setSelectedTextElement] = useState<string | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
-  const [activePanel, setActivePanel] = useState<'media' | 'effects' | 'audio' | 'text'>('media');
+  const [showTrimmer, setShowTrimmer] = useState(false);
+  const [trimmerClip, setTrimmerClip] = useState<VideoClip | null>(null);
+  const [activePanel, setActivePanel] = useState<'media' | 'effects' | 'advanced' | 'audio' | 'text'>('media');
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -122,6 +149,66 @@ export function VideoEditor() {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  // Text overlay handlers
+  const handleAddText = (element: Omit<TextElement, 'id'>) => {
+    const newElement: TextElement = {
+      ...element,
+      id: `text-${Date.now()}-${Math.random()}`
+    };
+    setTextElements(prev => [...prev, newElement]);
+    setSelectedTextElement(newElement.id);
+  };
+
+  const handleUpdateText = (id: string, updates: Partial<TextElement>) => {
+    setTextElements(prev => prev.map(el => 
+      el.id === id ? { ...el, ...updates } : el
+    ));
+  };
+
+  const handleDeleteText = (id: string) => {
+    setTextElements(prev => prev.filter(el => el.id !== id));
+    if (selectedTextElement === id) {
+      setSelectedTextElement(null);
+    }
+  };
+
+  // Video trimming handlers
+  const handleTrimVideo = (clipId: string, startTime: number, endTime: number) => {
+    setVideoClips(prev => prev.map(clip => 
+      clip.id === clipId 
+        ? { ...clip, startTime: clip.startTime + startTime, endTime: clip.startTime + endTime }
+        : clip
+    ));
+  };
+
+  const handleSplitVideo = (clipId: string, splitTime: number) => {
+    const clip = videoClips.find(c => c.id === clipId);
+    if (!clip) return;
+
+    const firstPart: VideoClip = {
+      ...clip,
+      id: `${clip.id}-part1`,
+      name: `${clip.name} (Part 1)`,
+      endTime: clip.startTime + splitTime
+    };
+
+    const secondPart: VideoClip = {
+      ...clip,
+      id: `${clip.id}-part2`,
+      name: `${clip.name} (Part 2)`,
+      startTime: clip.startTime + splitTime
+    };
+
+    setVideoClips(prev => prev.map(c => 
+      c.id === clipId ? firstPart : c
+    ).concat(secondPart));
+  };
+
+  const openTrimmer = (clip: VideoClip) => {
+    setTrimmerClip(clip);
+    setShowTrimmer(true);
+  };
+
   return (
     <div className="h-screen flex flex-col bg-[#1A1A1A] text-white">
       {/* Top Navigation */}
@@ -167,6 +254,7 @@ export function VideoEditor() {
             {[
               { id: 'media', label: 'Media', icon: Layers },
               { id: 'effects', label: 'Effects', icon: Sparkles },
+              { id: 'advanced', label: 'Advanced', icon: Sparkles },
               { id: 'audio', label: 'Audio', icon: Music },
               { id: 'text', label: 'Text', icon: Type }
             ].map(({ id, label, icon: Icon }) => (
@@ -189,6 +277,7 @@ export function VideoEditor() {
           <div className="flex-1 overflow-hidden">
             {activePanel === 'media' && <MediaLibrary onFileUpload={handleFileUpload} />}
             {activePanel === 'effects' && <EffectsPanel />}
+            {activePanel === 'advanced' && <AdvancedEffects />}
             {activePanel === 'audio' && (
               <div className="p-4">
                 <h3 className="text-lg font-semibold mb-4">Audio Library</h3>
@@ -196,10 +285,14 @@ export function VideoEditor() {
               </div>
             )}
             {activePanel === 'text' && (
-              <div className="p-4">
-                <h3 className="text-lg font-semibold mb-4">Text & Titles</h3>
-                <p className="text-gray-400 text-sm">Text overlays coming soon...</p>
-              </div>
+              <TextOverlay
+                textElements={textElements}
+                onAddText={handleAddText}
+                onUpdateText={handleUpdateText}
+                onDeleteText={handleDeleteText}
+                selectedElement={selectedTextElement}
+                onSelectElement={setSelectedTextElement}
+              />
             )}
           </div>
         </div>
@@ -211,6 +304,7 @@ export function VideoEditor() {
             <VideoPreview 
               videoRef={videoRef}
               videoClips={videoClips}
+              textElements={textElements}
               currentTime={currentTime}
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={handleLoadedMetadata}
@@ -282,6 +376,7 @@ export function VideoEditor() {
                   clip.id === clipId ? { ...clip, ...updates } : clip
                 ));
               }}
+              onTrimClip={openTrimmer}
             />
           </div>
         </div>
@@ -304,6 +399,19 @@ export function VideoEditor() {
           audioClips={audioClips}
           duration={duration}
           onClose={() => setShowExportModal(false)}
+        />
+      )}
+
+      {/* Video Trimmer Modal */}
+      {showTrimmer && trimmerClip && (
+        <VideoTrimmer
+          clip={trimmerClip}
+          onTrim={handleTrimVideo}
+          onSplit={handleSplitVideo}
+          onClose={() => {
+            setShowTrimmer(false);
+            setTrimmerClip(null);
+          }}
         />
       )}
     </div>

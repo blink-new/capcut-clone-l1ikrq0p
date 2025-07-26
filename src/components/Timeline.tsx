@@ -1,5 +1,8 @@
 import React, { useRef, useCallback, useState } from 'react';
 import { Card } from './ui/card';
+import { Button } from './ui/button';
+import { SimpleWaveform } from './AudioWaveform';
+import { Scissors, MoreHorizontal } from 'lucide-react';
 
 interface VideoClip {
   id: string;
@@ -31,6 +34,7 @@ interface TimelineProps {
   onSeek: (time: number) => void;
   onClipSelect: (clipId: string | null) => void;
   onClipUpdate: (clipId: string, updates: Partial<VideoClip>) => void;
+  onTrimClip?: (clip: VideoClip) => void;
 }
 
 export function Timeline({
@@ -42,7 +46,8 @@ export function Timeline({
   selectedClip,
   onSeek,
   onClipSelect,
-  onClipUpdate
+  onClipUpdate,
+  onTrimClip
 }: TimelineProps) {
   const timelineRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -166,7 +171,7 @@ export function Timeline({
               {videoClips.map((clip) => (
                 <div
                   key={clip.id}
-                  className={`absolute top-2 bottom-2 video-clip cursor-move rounded ${
+                  className={`absolute top-2 bottom-2 video-clip cursor-move rounded group ${
                     selectedClip === clip.id ? 'ring-2 ring-[#FF6B35]' : ''
                   }`}
                   style={{
@@ -175,10 +180,27 @@ export function Timeline({
                   }}
                   onMouseDown={(e) => handleClipMouseDown(e, clip.id)}
                 >
-                  <div className="h-full bg-[#FF6B35] rounded flex items-center px-2">
+                  <div className="h-full bg-[#FF6B35] rounded flex items-center px-2 relative">
                     <span className="text-xs font-medium text-white truncate">
                       {clip.name}
                     </span>
+                    
+                    {/* Clip Controls */}
+                    {selectedClip === clip.id && onTrimClip && (
+                      <div className="absolute -top-8 right-0 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="h-6 px-2 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onTrimClip(clip);
+                          }}
+                        >
+                          <Scissors className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                   {/* Resize handles */}
                   <div className="absolute left-0 top-0 bottom-0 w-1 bg-white/50 cursor-ew-resize" />
@@ -192,7 +214,7 @@ export function Timeline({
               {audioClips.filter(clip => clip.startTime < 30).map((clip) => (
                 <div
                   key={clip.id}
-                  className={`absolute top-1 bottom-1 cursor-move rounded ${
+                  className={`absolute top-1 bottom-1 cursor-move rounded overflow-hidden ${
                     selectedClip === clip.id ? 'ring-2 ring-[#4ECDC4]' : ''
                   }`}
                   style={{
@@ -201,10 +223,23 @@ export function Timeline({
                   }}
                   onMouseDown={(e) => handleClipMouseDown(e, clip.id)}
                 >
-                  <div className="h-full bg-[#4ECDC4] rounded flex items-center px-2">
-                    <span className="text-xs font-medium text-white truncate">
-                      {clip.name}
-                    </span>
+                  <div className="h-full bg-[#4ECDC4] rounded flex items-center relative">
+                    {/* Audio Waveform Background */}
+                    <div className="absolute inset-0">
+                      <SimpleWaveform
+                        width={(clip.endTime - clip.startTime) * pixelsPerSecond}
+                        height={40}
+                        color="#FFFFFF"
+                        animated={false}
+                      />
+                    </div>
+                    
+                    {/* Audio Clip Label */}
+                    <div className="relative z-10 px-2 flex items-center">
+                      <span className="text-xs font-medium text-white truncate">
+                        {clip.name}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}
